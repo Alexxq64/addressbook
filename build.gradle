@@ -1,0 +1,64 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+    id 'jacoco'
+}
+
+group = 'com.addressbook'
+version = '1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+javafx {
+    version = '21'
+    modules = ['javafx.controls', 'javafx.fxml']
+}
+
+dependencies {
+    // H2 Database
+    implementation 'com.h2database:h2:2.2.224'
+
+    // Jackson для JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.0'
+
+    // JUnit 5
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'com.addressbook.app.Main'
+    applicationDefaultJvmArgs = [
+            '-Dfile.encoding=UTF-8',
+            '-Dstdout.encoding=UTF-8',
+            '-Dstderr.encoding=UTF-8'
+    ]
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
