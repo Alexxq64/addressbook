@@ -1,6 +1,7 @@
 package com.addressbook.service;
 
 import com.addressbook.model.Contact;
+import com.addressbook.model.Phone;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,16 +37,6 @@ public class ValidationService {
             errors.add("Имя не должно превышать 50 символов");
         }
 
-        if (isBlank(c.getMobilePhone())) {
-            errors.add("Мобильный телефон обязателен");
-        } else if (!PHONE_PATTERN.matcher(c.getMobilePhone()).matches()) {
-            errors.add("Неверный формат мобильного телефона (пример: +79001234567)");
-        }
-
-        if (!isBlank(c.getWorkPhone()) && !PHONE_PATTERN.matcher(c.getWorkPhone()).matches()) {
-            errors.add("Неверный формат рабочего телефона");
-        }
-
         if (!isBlank(c.getEmail()) && !EMAIL_PATTERN.matcher(c.getEmail()).matches()) {
             errors.add("Неверный формат email");
         }
@@ -58,7 +49,26 @@ public class ValidationService {
             errors.add("Заметка не должна превышать 500 символов");
         }
 
+        validatePhones(c.getPhones(), errors);
+
         return errors;
+    }
+
+    private void validatePhones(List<Phone> phones, List<String> errors) {
+        if (phones == null || phones.isEmpty()) {
+            errors.add("Добавьте хотя бы один телефон");
+            return;
+        }
+
+        for (int i = 0; i < phones.size(); i++) {
+            Phone p = phones.get(i);
+            String num = p.getNumber();
+            if (isBlank(num)) {
+                errors.add("Телефон №" + (i + 1) + ": номер не указан");
+            } else if (!PHONE_PATTERN.matcher(num).matches()) {
+                errors.add("Телефон №" + (i + 1) + ": неверный формат (пример: +79001234567)");
+            }
+        }
     }
 
     private boolean isBlank(String s) {

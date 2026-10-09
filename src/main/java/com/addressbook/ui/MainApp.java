@@ -20,7 +20,5 @@ public class MainApp extends Application {
         stage.setTitle("Телефонная адресная книга");
         stage.setScene(scene);
         stage.show();
-        stage.toFront();
-        stage.requestFocus();
     }
 }

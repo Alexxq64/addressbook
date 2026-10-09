@@ -1,10 +1,13 @@
 package com.addressbook.model;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Контакт в адресной книге.
+ * Телефоны хранятся отдельно — у одного контакта их может быть несколько.
  */
 public class Contact {
 
@@ -12,14 +15,14 @@ public class Contact {
     private String lastName;
     private String firstName;
     private String middleName;
-    private String mobilePhone;
-    private String workPhone;
     private String email;
     private String address;
     private Long groupId;
     private String note;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private List<Phone> phones = new ArrayList<>();
 
     public Contact() {
     }
@@ -54,22 +57,6 @@ public class Contact {
 
     public void setMiddleName(String middleName) {
         this.middleName = middleName;
-    }
-
-    public String getMobilePhone() {
-        return mobilePhone;
-    }
-
-    public void setMobilePhone(String mobilePhone) {
-        this.mobilePhone = mobilePhone;
-    }
-
-    public String getWorkPhone() {
-        return workPhone;
-    }
-
-    public void setWorkPhone(String workPhone) {
-        this.workPhone = workPhone;
     }
 
     public String getEmail() {
@@ -120,6 +107,14 @@ public class Contact {
         this.updatedAt = updatedAt;
     }
 
+    public List<Phone> getPhones() {
+        return phones;
+    }
+
+    public void setPhones(List<Phone> phones) {
+        this.phones = phones != null ? phones : new ArrayList<>();
+    }
+
     /**
      * Полное ФИО одной строкой.
      */
@@ -137,6 +132,13 @@ public class Contact {
         return sb.toString();
     }
 
+    /**
+     * Первый телефон из списка — для отображения в таблице.
+     */
+    public String getPrimaryPhone() {
+        return phones.isEmpty() ? "" : phones.get(0).getNumber();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -152,6 +154,6 @@ public class Contact {
 
     @Override
     public String toString() {
-        return getFullName() + " — " + mobilePhone;
+        return getFullName();
     }
 }

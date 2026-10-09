@@ -58,8 +58,6 @@ public class DatabaseManager {
                     last_name VARCHAR(50) NOT NULL,
                     first_name VARCHAR(50) NOT NULL,
                     middle_name VARCHAR(50),
-                    mobile_phone VARCHAR(20) NOT NULL,
-                    work_phone VARCHAR(20),
                     email VARCHAR(100),
                     address VARCHAR(200),
                     group_id BIGINT,
@@ -70,9 +68,20 @@ public class DatabaseManager {
                 )
                 """;
 
+        String createPhones = """
+                CREATE TABLE IF NOT EXISTS phones (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    contact_id BIGINT NOT NULL,
+                    number VARCHAR(20) NOT NULL,
+                    type VARCHAR(20),
+                    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+                )
+                """;
+
         try (Statement st = getConnection().createStatement()) {
             st.execute(createGroups);
             st.execute(createContacts);
+            st.execute(createPhones);
             System.out.println("Схема БД инициализирована");
         } catch (SQLException e) {
             throw new RuntimeException("Ошибка создания схемы БД", e);
