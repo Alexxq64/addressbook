@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * Контакт в адресной книге.
@@ -118,6 +119,7 @@ public class Contact {
     /**
      * Полное ФИО одной строкой.
      */
+    @JsonIgnore
     public String getFullName() {
         StringBuilder sb = new StringBuilder();
         if (lastName != null) sb.append(lastName);
@@ -135,6 +137,7 @@ public class Contact {
     /**
      * Первый телефон из списка — для отображения в таблице.
      */
+    @JsonIgnore
     public String getPrimaryPhone() {
         return phones.isEmpty() ? "" : phones.get(0).getNumber();
     }
