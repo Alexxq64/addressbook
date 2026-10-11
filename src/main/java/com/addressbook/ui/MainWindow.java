@@ -16,12 +16,15 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.stage.FileChooser;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.time.LocalTime;
 
 public class MainWindow extends BorderPane {
@@ -37,12 +40,12 @@ public class MainWindow extends BorderPane {
 
     private final Label detailName = new Label();
     private final VBox detailPhones = new VBox(5);
+    private final Button detailCopyBtn = new Button("📋");
     private final Button detailEditBtn = new Button("✎");
     private final Button detailDeleteBtn = new Button("🗑");
     private final Label detailEmail = new Label();
     private final ComboBox<Group> detailGroupBox = new ComboBox<>();
-    private final Button groupEditBtn = new Button("✎");
-    private final Button groupAddBtn = new Button("+");
+    private final Button groupEditBtn = new Button("⚙");
     private final Button groupRemoveBtn = new Button("🗑");
     private final Label detailAddress = new Label();
     private final Label detailNote = new Label();
@@ -145,6 +148,10 @@ public class MainWindow extends BorderPane {
     private VBox buildDetailPane() {
         detailName.setFont(Font.font("System", FontWeight.BOLD, 16));
 
+        detailCopyBtn.setTooltip(new Tooltip("Копировать карточку"));
+        detailCopyBtn.setStyle("-fx-font-size: 14; -fx-padding: 2 8 2 8;");
+        detailCopyBtn.setOnAction(e -> onCopyCard());
+
         detailEditBtn.setTooltip(new Tooltip("Редактировать контакт"));
         detailEditBtn.setStyle("-fx-font-size: 14; -fx-padding: 2 8 2 8;");
         detailEditBtn.setOnAction(e -> onEdit());
@@ -156,24 +163,20 @@ public class MainWindow extends BorderPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox nameRow = new HBox(8, detailName, spacer, detailEditBtn, detailDeleteBtn);
+        HBox nameRow = new HBox(8, detailName, spacer, detailCopyBtn, detailEditBtn, detailDeleteBtn);
         nameRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label phonesTitle = new Label("Телефоны:");
+        Label phonesTitle = new Label("Телефоны");
         phonesTitle.setFont(Font.font("System", FontWeight.BOLD, 13));
-        Label emailTitle = new Label("Email:");
+        Label emailTitle = new Label("Email");
         emailTitle.setFont(Font.font("System", FontWeight.BOLD, 13));
 
-        Label groupTitle = new Label("Группа:");
+        Label groupTitle = new Label("Группа");
         groupTitle.setFont(Font.font("System", FontWeight.BOLD, 13));
 
         groupEditBtn.setTooltip(new Tooltip("Редактор групп"));
-        groupEditBtn.setStyle("-fx-font-size: 12; -fx-padding: 1 6 1 6;");
+        groupEditBtn.setStyle("-fx-font-size: 14; -fx-padding: 2 8 2 8;");
         groupEditBtn.setOnAction(e -> onGroups());
-
-        groupAddBtn.setTooltip(new Tooltip("Добавить группу"));
-        groupAddBtn.setStyle("-fx-font-size: 12; -fx-padding: 1 6 1 6;");
-        groupAddBtn.setOnAction(e -> onAddGroup());
 
         groupRemoveBtn.setTooltip(new Tooltip("Убрать группу у контакта"));
         groupRemoveBtn.setStyle("-fx-font-size: 12; -fx-padding: 1 6 1 6;");
@@ -183,19 +186,22 @@ public class MainWindow extends BorderPane {
         detailGroupBox.setPromptText("— без группы —");
         detailGroupBox.setOnAction(e -> onGroupSelected());
 
-        HBox groupRow = new HBox(6, detailGroupBox, groupEditBtn, groupAddBtn, groupRemoveBtn);
-        groupRow.setAlignment(Pos.CENTER_LEFT);
+        HBox groupTitleRow = new HBox(6, groupTitle, groupEditBtn);
+        groupTitleRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label addressTitle = new Label("Адрес:");
+        HBox groupBoxRow = new HBox(6, detailGroupBox, groupRemoveBtn);
+        groupBoxRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label addressTitle = new Label("Адрес");
         addressTitle.setFont(Font.font("System", FontWeight.BOLD, 13));
-        Label noteTitle = new Label("Заметка:");
+        Label noteTitle = new Label("Заметка");
         noteTitle.setFont(Font.font("System", FontWeight.BOLD, 13));
 
         detailPanel.getChildren().addAll(
                 nameRow, new Separator(),
                 phonesTitle, detailPhones,
                 emailTitle, detailEmail,
-                groupTitle, groupRow,
+                groupTitleRow, groupBoxRow,
                 addressTitle, detailAddress,
                 noteTitle, detailNote
         );
@@ -268,17 +274,18 @@ public class MainWindow extends BorderPane {
         detailPhones.getChildren().clear();
 
         boolean hasSelection = (c != null);
+        detailCopyBtn.setDisable(!hasSelection);
         detailEditBtn.setDisable(!hasSelection);
         detailDeleteBtn.setDisable(!hasSelection);
         groupEditBtn.setDisable(!hasSelection);
         groupRemoveBtn.setDisable(!hasSelection || c == null || c.getGroupId() == null);
-        groupAddBtn.setDisable(false);
         detailGroupBox.setDisable(!hasSelection);
 
         if (c == null) {
             detailName.setText("Выберите контакт");
             detailEmail.setText("");
             suppressGroupAction = true;
+            detailGroupBox.setItems(FXCollections.observableArrayList());
             detailGroupBox.setValue(null);
             suppressGroupAction = false;
             detailAddress.setText("");
@@ -291,18 +298,16 @@ public class MainWindow extends BorderPane {
             detailPhones.getChildren().add(new Label("— нет телефонов —"));
         } else {
             for (Phone p : c.getPhones()) {
-                detailPhones.getChildren().add(new Label("• " + p));
+                detailPhones.getChildren().add(buildPhoneRow(p));
             }
         }
         detailEmail.setText(c.getEmail() != null ? c.getEmail() : "—");
 
-        // Обновляем список групп только если он пуст или у контакта группа, которой нет в списке
-        List<Group> groups = groupService.findAll();
-        log("showDetails: loaded groups = " + groups.size());
-        if (detailGroupBox.getItems().size() != groups.size()) {
-            log("showDetails: updating groupBox items");
-            detailGroupBox.getItems().setAll(groups);
-        }
+        List<Group> groups = new ArrayList<>(groupService.findAll());
+        groups.add(newGroupPlaceholder());
+
+        suppressGroupAction = true;
+        detailGroupBox.setItems(FXCollections.observableArrayList(groups));
 
         Group current = null;
         if (c.getGroupId() != null) {
@@ -311,7 +316,6 @@ public class MainWindow extends BorderPane {
                     .findFirst()
                     .orElse(null);
         }
-        suppressGroupAction = true;
         detailGroupBox.setValue(current);
         suppressGroupAction = false;
 
@@ -320,20 +324,58 @@ public class MainWindow extends BorderPane {
         log("showDetails: end");
     }
 
+    private HBox buildPhoneRow(Phone phone) {
+        Label label = new Label("• " + phone);
+
+        Button copyBtn = new Button("📋");
+        copyBtn.setTooltip(new Tooltip("Копировать номер"));
+        copyBtn.setStyle("-fx-font-size: 11; -fx-padding: 1 4 1 4;");
+        copyBtn.setOnAction(e -> {
+            Clipboard clipboard = Clipboard.getSystemClipboard();
+            ClipboardContent content = new ClipboardContent();
+            content.putString(phone.getNumber());
+            clipboard.setContent(content);
+        });
+
+        Button callBtn = new Button("📞");
+        callBtn.setTooltip(new Tooltip("Позвонить"));
+        callBtn.setStyle("-fx-font-size: 11; -fx-padding: 1 4 1 4;");
+        callBtn.setOnAction(e -> onCall(phone.getNumber()));
+
+        HBox row = new HBox(6, label, copyBtn, callBtn);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private void onCall(String number) {
+        if (number == null || number.isBlank()) return;
+
+        String clean = number.replaceAll("[^0-9+]", "");
+        String uri = "tel:" + clean;
+
+        try {
+            if (!java.awt.Desktop.isDesktopSupported()) {
+                showError("Система не поддерживает открытие внешних приложений");
+                return;
+            }
+            java.awt.Desktop.getDesktop().browse(java.net.URI.create(uri));
+        } catch (Exception e) {
+            showError("Не удалось открыть приложение для звонка: " + e.getMessage());
+        }
+    }
+
     private void onGroupSelected() {
-        log("onGroupSelected: start, suppress=" + suppressGroupAction);
-        if (suppressGroupAction) {
-            log("onGroupSelected: suppressed, exit");
-            return;
-        }
+        if (suppressGroupAction) return;
         Contact selected = selectedContact();
-        if (selected == null) {
-            log("onGroupSelected: selected is null, exit");
-            return;
-        }
-        log("onGroupSelected: selected = " + selected.getFullName());
+        if (selected == null) return;
 
         Group chosen = detailGroupBox.getValue();
+
+        if (chosen != null && chosen.getId() == -1L) {
+            onAddGroupCommand();
+            return;
+        }
+
         Long newGroupId = chosen != null ? chosen.getId() : null;
 
         if (java.util.Objects.equals(selected.getGroupId(), newGroupId)) return;
@@ -343,44 +385,59 @@ public class MainWindow extends BorderPane {
         selectRowForContact(selected.getId());
     }
 
-    private Contact selectedContact() {
-        PhoneRow row = table.getSelectionModel().getSelectedItem();
-        return row != null ? row.getContact() : null;
-    }
-
-    private void onAddGroup() {
-        log("onAddGroup: start");
+    private void onAddGroupCommand() {
         Contact selected = selectedContact();
-        if (selected == null) {
-            log("onAddGroup: selected is null, exit");
-            return;
-        }
+        if (selected == null) return;
+
+        Long oldGroupId = selected.getGroupId();
 
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Новая группа");
         dialog.setHeaderText(null);
         dialog.setContentText("Название:");
-        dialog.showAndWait().ifPresent(name -> {
-            try {
-                Group created = groupService.create(name, null);
-                log("onAddGroup: group created id=" + created.getId());
-                selected.setGroupId(created.getId());
-                contactService.update(selected);
-                log("onAddGroup: contact updated");
 
-                suppressGroupAction = true;
-                List<Group> groups = groupService.findAll();
-                detailGroupBox.setItems(FXCollections.observableArrayList(groups));
-                detailGroupBox.setValue(created);
-                suppressGroupAction = false;
+        Optional<String> result = dialog.showAndWait();
 
-                selectRowForContact(selected.getId());
+        if (result.isEmpty() || result.get().isBlank()) {
+            restoreGroupSelection(oldGroupId);
+            return;
+        }
 
-                log("onAddGroup: end");
-            } catch (IllegalArgumentException e) {
-                showError(e.getMessage());
-            }
-        });
+        try {
+            Group created = groupService.create(result.get(), null);
+            selected.setGroupId(created.getId());
+            contactService.update(selected);
+
+            suppressGroupAction = true;
+            List<Group> groups = new ArrayList<>(groupService.findAll());
+            groups.add(newGroupPlaceholder());
+            detailGroupBox.setItems(FXCollections.observableArrayList(groups));
+            detailGroupBox.setValue(created);
+            suppressGroupAction = false;
+
+            selectRowForContact(selected.getId());
+        } catch (IllegalArgumentException e) {
+            showError(e.getMessage());
+            restoreGroupSelection(oldGroupId);
+        }
+    }
+
+    private void restoreGroupSelection(Long groupId) {
+        suppressGroupAction = true;
+        if (groupId == null) {
+            detailGroupBox.setValue(null);
+        } else {
+            detailGroupBox.getItems().stream()
+                    .filter(g -> groupId.equals(g.getId()))
+                    .findFirst()
+                    .ifPresent(detailGroupBox::setValue);
+        }
+        suppressGroupAction = false;
+    }
+
+    private Contact selectedContact() {
+        PhoneRow row = table.getSelectionModel().getSelectedItem();
+        return row != null ? row.getContact() : null;
     }
 
     private void onRemoveGroupFromContact() {
@@ -530,6 +587,58 @@ public class MainWindow extends BorderPane {
                 return;
             }
         }
+    }
+
+    private Group newGroupPlaceholder() {
+        Group g = new Group();
+        g.setId(-1L);
+        g.setName("+ Новая группа...");
+        return g;
+    }
+
+    private void onCopyCard() {
+        Contact selected = selectedContact();
+        if (selected == null) return;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(selected.getFullName()).append("\n");
+
+        if (!selected.getPhones().isEmpty()) {
+            sb.append("Телефоны:\n");
+            for (Phone p : selected.getPhones()) {
+                sb.append(p.getNumber());
+                if (p.getType() != null && !p.getType().isBlank()) {
+                    sb.append(" (").append(p.getType()).append(")");
+                }
+                sb.append("\n");
+            }
+        }
+
+        if (selected.getEmail() != null && !selected.getEmail().isBlank()) {
+            sb.append("Email: ").append(selected.getEmail()).append("\n");
+        }
+        if (selected.getGroupId() != null) {
+            sb.append("Группа: ").append(resolveGroupName(selected.getGroupId())).append("\n");
+        }
+        if (selected.getAddress() != null && !selected.getAddress().isBlank()) {
+            sb.append("Адрес: ").append(selected.getAddress()).append("\n");
+        }
+        if (selected.getNote() != null && !selected.getNote().isBlank()) {
+            sb.append("Заметка: ").append(selected.getNote()).append("\n");
+        }
+
+        javafx.scene.input.Clipboard clipboard = Clipboard.getSystemClipboard();
+        javafx.scene.input.ClipboardContent content = new ClipboardContent();
+        content.putString(sb.toString().trim());
+        clipboard.setContent(content);
+    }
+
+    private String resolveGroupName(Long groupId) {
+        return groupService.findAll().stream()
+                .filter(g -> g.getId().equals(groupId))
+                .map(Group::getName)
+                .findFirst()
+                .orElse("—");
     }
 
     private static final boolean DEBUG = false;
