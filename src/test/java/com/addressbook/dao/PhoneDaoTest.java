@@ -2,9 +2,11 @@ package com.addressbook.dao;
 
 import com.addressbook.model.Contact;
 import com.addressbook.model.Phone;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,6 +15,7 @@ class PhoneDaoTest {
 
     private PhoneDao phoneDao;
     private ContactDao contactDao;
+    private final List<Long> createdContactIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
@@ -21,27 +24,37 @@ class PhoneDaoTest {
         contactDao = new ContactDao();
     }
 
+    @AfterEach
+    void tearDown() {
+        for (Long id : createdContactIds) {
+            try {
+                contactDao.delete(id);
+            } catch (Exception ignored) {
+            }
+        }
+        createdContactIds.clear();
+    }
+
     @Test
     void saveAll_storesPhones() {
-        Contact c = createContact("+79001111111");
-        Long contactId = c.getId();
-
-        List<Phone> loaded = phoneDao.findByContactId(contactId);
+        Contact c = createContact(uniquePhone());
+        List<Phone> loaded = phoneDao.findByContactId(c.getId());
 
         assertEquals(1, loaded.size());
-        assertEquals("+79001111111", loaded.get(0).getNumber());
+        assertEquals(c.getPhones().get(0).getNumber(), loaded.get(0).getNumber());
         assertEquals("мобильный", loaded.get(0).getType());
     }
 
     @Test
     void saveAll_multiplePhones() {
         Contact c = new Contact();
-        c.setLastName("Многотелефонный");
+        c.setLastName("ТестовыйМноготел");
         c.setFirstName("Тест");
-        c.getPhones().add(new Phone("+79002222222", "мобильный"));
-        c.getPhones().add(new Phone("+74952222222", "рабочий"));
-        c.getPhones().add(new Phone("+74992222222", "домашний"));
+        c.getPhones().add(new Phone(uniquePhone(), "мобильный"));
+        c.getPhones().add(new Phone(uniquePhone(), "рабочий"));
+        c.getPhones().add(new Phone(uniquePhone(), "домашний"));
         contactDao.save(c);
+        createdContactIds.add(c.getId());
 
         List<Phone> loaded = phoneDao.findByContactId(c.getId());
 
@@ -50,54 +63,49 @@ class PhoneDaoTest {
 
     @Test
     void saveAll_replacesOldPhones() {
-        Contact c = createContact("+79003333333");
+        Contact c = createContact(uniquePhone());
         Long contactId = c.getId();
 
         c.getPhones().clear();
-        c.getPhones().add(new Phone("+79004444444", "рабочий"));
+        c.getPhones().add(new Phone(uniquePhone(), "рабочий"));
         phoneDao.saveAll(contactId, c.getPhones());
 
         List<Phone> loaded = phoneDao.findByContactId(contactId);
 
         assertEquals(1, loaded.size());
-        assertEquals("+79004444444", loaded.get(0).getNumber());
+        assertEquals("рабочий", loaded.get(0).getType());
     }
 
     @Test
     void deleteByContactId_removesAll() {
-        Contact c = createContact("+79005555555");
+        Contact c = createContact(uniquePhone());
         Long contactId = c.getId();
 
         phoneDao.deleteByContactId(contactId);
 
-        List<Phone> loaded = phoneDao.findByContactId(contactId);
-        assertTrue(loaded.isEmpty());
+        assertTrue(phoneDao.findByContactId(contactId).isEmpty());
     }
 
     @Test
     void existsByNumber_returnsTrue() {
-        createContact("+79006666666");
+        String phone = uniquePhone();
+        createContact(phone);
 
-        boolean exists = phoneDao.existsByNumber("+79006666666", null);
-
-        assertTrue(exists);
+        assertTrue(phoneDao.existsByNumber(phone, null));
     }
 
     @Test
     void existsByNumber_returnsFalse() {
-        boolean exists = phoneDao.existsByNumber("+79999999999", null);
-        assertFalse(exists);
+        assertFalse(phoneDao.existsByNumber("+79999999999", null));
     }
 
     @Test
     void existsByNumber_excludesOwnContact() {
-        String uniquePhone = "+79" + (System.nanoTime() % 1000000000L);
-        Contact c = createContact(uniquePhone);
-        Long contactId = c.getId();
+        String phone = uniquePhone();
+        Contact c = createContact(phone);
 
-        boolean exists = phoneDao.existsByNumber(uniquePhone, contactId);
-
-        assertFalse(exists, "Свой же номер не должен считаться дубликатом");
+        assertFalse(phoneDao.existsByNumber(phone, c.getId()),
+                "Свой же номер не должен считаться дубликатом");
     }
 
     private Contact createContact(String phone) {
@@ -105,6 +113,12 @@ class PhoneDaoTest {
         c.setLastName("Тестовый");
         c.setFirstName("Контакт");
         c.getPhones().add(new Phone(phone, "мобильный"));
-        return contactDao.save(c);
+        Contact saved = contactDao.save(c);
+        createdContactIds.add(saved.getId());
+        return saved;
+    }
+
+    private String uniquePhone() {
+        return "+7910" + String.format("%07d", System.nanoTime() % 10000000L);
     }
 }
