@@ -479,8 +479,13 @@ public class MainWindow extends BorderPane {
             showError("Выберите контакт");
             return;
         }
+        Long contactId = selected.getId();
+
         ContactForm form = new ContactForm(selected);
-        form.showAndWait().ifPresent(c -> refresh());
+        form.showAndWait();
+
+        refresh();
+        selectRowForContact(contactId);
     }
 
     private void onDelete() {
