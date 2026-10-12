@@ -117,9 +117,13 @@ public class ContactDao {
 
     public List<Contact> searchByName(String query) {
         String sql = """
-                SELECT * FROM contacts
-                WHERE LOWER(last_name) LIKE ? OR LOWER(first_name) LIKE ? OR LOWER(middle_name) LIKE ?
-                ORDER BY last_name, first_name
+                SELECT DISTINCT c.* FROM contacts c
+                LEFT JOIN phones p ON p.contact_id = c.id
+                WHERE LOWER(c.last_name) LIKE ?
+                   OR LOWER(c.first_name) LIKE ?
+                   OR LOWER(c.middle_name) LIKE ?
+                   OR LOWER(p.number) LIKE ?
+                ORDER BY c.last_name, c.first_name
                 """;
         String pattern = "%" + query.toLowerCase() + "%";
         List<Contact> result = new ArrayList<>();
@@ -127,6 +131,7 @@ public class ContactDao {
             ps.setString(1, pattern);
             ps.setString(2, pattern);
             ps.setString(3, pattern);
+            ps.setString(4, pattern);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     Contact c = mapRow(rs);
@@ -135,7 +140,7 @@ public class ContactDao {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Ошибка поиска по имени", e);
+            throw new RuntimeException("Ошибка поиска", e);
         }
         return result;
     }

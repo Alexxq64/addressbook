@@ -37,9 +37,11 @@ public class MainWindow extends BorderPane {
 
     private final TextField searchField = new TextField();
     private final TableView<PhoneRow> table = new TableView<>();
+    private final ComboBox<Group> filterGroupBox = new ComboBox<>();
 
     private final Label detailName = new Label();
     private final VBox detailPhones = new VBox(5);
+    private final Button detailAddBtn = new Button("+");
     private final Button detailCopyBtn = new Button("📋");
     private final Button detailEditBtn = new Button("✎");
     private final Button detailDeleteBtn = new Button("🗑");
@@ -53,6 +55,7 @@ public class MainWindow extends BorderPane {
 
     private boolean phonesMode = false;
     private boolean suppressGroupAction = false;
+    private boolean suppressFilterAction = false;
 
     public MainWindow() {
         setPadding(new Insets(10));
@@ -64,7 +67,7 @@ public class MainWindow extends BorderPane {
     }
 
     private HBox buildTopPanel() {
-        searchField.setPromptText("Поиск по ФИО...");
+        searchField.setPromptText("Поиск по ФИО или телефону...");
         searchField.setPrefWidth(300);
         searchField.setOnAction(e -> refresh());
 
@@ -77,23 +80,24 @@ public class MainWindow extends BorderPane {
             refresh();
         });
 
-        Button addBtn = new Button("Добавить");
-        addBtn.setOnAction(e -> onAdd());
-
-        ToggleGroup viewGroup = new ToggleGroup();
-        RadioButton contactsView = new RadioButton("Контакты");
-        RadioButton phonesView = new RadioButton("Телефоны");
-        contactsView.setToggleGroup(viewGroup);
-        phonesView.setToggleGroup(viewGroup);
-        contactsView.setSelected(true);
-
-        viewGroup.selectedToggleProperty().addListener((obs, old, sel) -> {
-            phonesMode = (sel == phonesView);
-            applyFilter();
+        filterGroupBox.setPrefWidth(180);
+        filterGroupBox.setPromptText("Все группы");
+        filterGroupBox.setOnAction(e -> {
+            if (suppressFilterAction) return;
+            refresh();
         });
 
-        HBox box = new HBox(10, new Label("Поиск:"), searchField, searchBtn, clearBtn,
-                addBtn, new Separator(Orientation.VERTICAL), contactsView, phonesView);
+        Button clearFilterBtn = new Button("×");
+        clearFilterBtn.setTooltip(new Tooltip("Сбросить фильтр"));
+        clearFilterBtn.setOnAction(e -> {
+            filterGroupBox.setValue(null);
+            refresh();
+        });
+
+        HBox box = new HBox(10,
+                searchField, searchBtn, clearBtn,
+                new Separator(Orientation.VERTICAL),
+                new Label("Группа:"), filterGroupBox, clearFilterBtn);
         box.setPadding(new Insets(0, 0, 10, 0));
         return box;
     }
@@ -148,6 +152,10 @@ public class MainWindow extends BorderPane {
     private VBox buildDetailPane() {
         detailName.setFont(Font.font("System", FontWeight.BOLD, 16));
 
+        detailAddBtn.setTooltip(new Tooltip("Добавить контакт"));
+        detailAddBtn.setStyle("-fx-font-size: 14; -fx-padding: 2 8 2 8;");
+        detailAddBtn.setOnAction(e -> onAdd());
+
         detailCopyBtn.setTooltip(new Tooltip("Копировать карточку"));
         detailCopyBtn.setStyle("-fx-font-size: 14; -fx-padding: 2 8 2 8;");
         detailCopyBtn.setOnAction(e -> onCopyCard());
@@ -163,8 +171,7 @@ public class MainWindow extends BorderPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox nameRow = new HBox(8, detailName, spacer, detailCopyBtn, detailEditBtn, detailDeleteBtn);
-        nameRow.setAlignment(Pos.CENTER_LEFT);
+        HBox nameRow = new HBox(8, detailName, spacer, detailAddBtn, detailCopyBtn, detailEditBtn, detailDeleteBtn);
 
         Label phonesTitle = new Label("Телефоны");
         phonesTitle.setFont(Font.font("System", FontWeight.BOLD, 13));
@@ -216,6 +223,18 @@ public class MainWindow extends BorderPane {
     }
 
     private HBox buildBottomPanel() {
+        ToggleGroup viewGroup = new ToggleGroup();
+        RadioButton contactsView = new RadioButton("Контакты");
+        RadioButton phonesView = new RadioButton("Телефоны");
+        contactsView.setToggleGroup(viewGroup);
+        phonesView.setToggleGroup(viewGroup);
+        contactsView.setSelected(true);
+
+        viewGroup.selectedToggleProperty().addListener((obs, old, sel) -> {
+            phonesMode = (sel == phonesView);
+            applyFilter();
+        });
+
         Button exportBtn = new Button("Экспорт");
         exportBtn.setOnAction(e -> onExport());
 
@@ -225,16 +244,29 @@ public class MainWindow extends BorderPane {
         Button refreshBtn = new Button("Обновить");
         refreshBtn.setOnAction(e -> refresh());
 
-        HBox box = new HBox(10, exportBtn, importBtn, refreshBtn);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox box = new HBox(10,
+                contactsView, phonesView,
+                new Separator(Orientation.VERTICAL),
+                spacer,
+                exportBtn, importBtn, refreshBtn);
         box.setPadding(new Insets(10, 0, 0, 0));
         return box;
     }
 
     private void refresh() {
-        log("refresh: start");
         String query = searchField.getText();
         List<Contact> contacts = contactService.search(query);
-        log("refresh: loaded contacts = " + contacts.size());
+
+        Group selectedGroup = filterGroupBox.getValue();
+        if (selectedGroup != null) {
+            Long groupId = selectedGroup.getId();
+            contacts.removeIf(c -> !groupId.equals(c.getGroupId()));
+        }
+
+        updateGroupFilter();
 
         allRows.clear();
         for (Contact c : contacts) {
@@ -246,9 +278,22 @@ public class MainWindow extends BorderPane {
                 }
             }
         }
-        log("refresh: allRows filled = " + allRows.size());
         applyFilter();
-        log("refresh: end");
+    }
+
+    private void updateGroupFilter() {
+        Group previous = filterGroupBox.getValue();
+        List<Group> groups = groupService.findAll();
+
+        suppressFilterAction = true;
+        filterGroupBox.getItems().setAll(groups);
+        if (previous != null) {
+            groups.stream()
+                    .filter(g -> g.getId().equals(previous.getId()))
+                    .findFirst()
+                    .ifPresent(filterGroupBox::setValue);
+        }
+        suppressFilterAction = false;
     }
 
     private void applyFilter() {
